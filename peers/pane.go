@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"time"
+	"unicode/utf8"
 
 	"github.com/creack/pty"
 	"github.com/hinshun/vt10x"
@@ -298,17 +299,28 @@ func (pane *Pane) dumpVT() {
 	logger := pane.peer.logger
 	var (
 		view []byte
-		c    rune
 	)
 	t := pane.vt
 	t.Lock()
 	defer t.Unlock()
 	rows, cols := t.Size()
+    lastFg := -1
+    lastBg := -1
 	logger.Infof("dumping scree size %dx%d", rows, cols)
 	for y := 0; y < rows; y++ {
 		for x := 0; x < cols; x++ {
-			c, _, _ = t.Cell(x, y)
-			view = append(view, byte(c))
+            c, fg, bg := t.Cell(x, y)
+            if int(fg) != lastFg {
+                view = append(view, []byte(fmt.Sprintf("\x1b[38;5;%dm", fg))...)
+                lastFg = int(fg)
+            }
+            if int(bg) != lastBg {
+                // view = append(view, []byte(fmt.Sprintf("\x1b[48;5;%dm", bg))...)
+                lastBg = int(bg)
+            }
+            buf := make([]byte, utf8.UTFMax)
+            n := utf8.EncodeRune(buf, c)
+			view = append(view, buf[:n]...)
 		}
 		if y < rows-1 {
 			view = append(view, byte('\n'))
